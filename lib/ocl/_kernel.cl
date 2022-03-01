@@ -13,8 +13,8 @@ __kernel void copy_data(__global const uchar *input_data,
 
 }
 
-__kernel void zero_copy(__global const uchar3 *input_data,
-                              __global uchar3 *output_data, const int  width)
+__kernel void zero_copy(__global const uchar *input_data,
+                              __global uchar *output_data, const int  width)
 {
 
       int x = get_global_id(0);
@@ -22,7 +22,8 @@ __kernel void zero_copy(__global const uchar3 *input_data,
       
       int index = mad24(y, width, x);
 
-      output_data[index] = input_data[index];
+      uchar3 BGR = vload3(index, input_data);
+      vstore3(BGR.xyz, index, output_data);
 
 }
 
