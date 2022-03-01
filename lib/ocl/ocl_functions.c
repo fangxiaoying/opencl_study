@@ -151,10 +151,8 @@ void zerocpy_ocl_g2d(struct imx_gpu* GPU, struct g2d_buf* src, int width, int he
 
     sigStart = get_perf_count();
 
-
     status = clEnqueueNDRangeKernel(GPU->queue, kernel, 2, NULL, 
                                                         global_size, 0, 0, NULL, &prof_event);
-
     clFlush(GPU->queue);
     // clFinish(GPU->queue);
 
@@ -162,12 +160,6 @@ void zerocpy_ocl_g2d(struct imx_gpu* GPU, struct g2d_buf* src, int width, int he
     msVal = (sigEnd - sigStart)/1000000;
     printf("time 1: %.2fms \n", msVal);
 
-
-    // sigStart = get_perf_count();
-
-    // sigEnd = get_perf_count();
-    // msVal = (sigEnd - sigStart)/1000;
-    // printf("time 2: %.2fus \n", msVal);
 
     clReleaseMemObject(src_mem);
     clReleaseMemObject(dst_mem);
@@ -214,13 +206,10 @@ void zerocpy_ocl_last(struct imx_gpu* GPU, struct g2d_buf* src, int width, int h
 
     sigStart = get_perf_count();
 
-
     status = clEnqueueNDRangeKernel(GPU->queue, kernel, 2, NULL, 
-                                                        global_size, 0, 0, NULL, &prof_event);
-
-    // clFlush(GPU->queue);
-    clWaitForEvents(1, &prof_event);
-
+                                                        global_size, local_size, 0, NULL, &prof_event);
+    clFlush(GPU->queue);
+    // clWaitForEvents(1, &prof_event);
 
     sigEnd = get_perf_count();
     msVal = (sigEnd - sigStart)/1000000;
@@ -238,13 +227,14 @@ void bgra2rgb_ocl(struct imx_gpu* GPU, struct g2d_buf* src, int width, int heigh
     cl_kernel kernel;
     cl_mem src_mem, dst_mem;
     size_t image_size =  width * height;
+    size_t local_size[2];
     size_t global_size[2];
 
     uint64_t sigStart, sigEnd;
     float msVal;
 
     void* in_data =  (void*)(unsigned long)(unsigned int)src->buf_paddr;
-    void* out_data = (void*)(unsigned long)(unsigned int) dst->buf_paddr;
+    void* out_data = (void*)(unsigned long)(unsigned int)dst->buf_paddr;
 
 
     kernel = clCreateKernel(GPU->program, "BGRA2RGB", &status);
@@ -252,7 +242,6 @@ void bgra2rgb_ocl(struct imx_gpu* GPU, struct g2d_buf* src, int width, int heigh
 
     src_mem = clCreateBuffer(GPU->context, phy_mem_flag | CL_MEM_READ_ONLY, 
                                         sizeof(u_char) * image_size * 4, in_data, &status);
-    CHECK_ERROR(status);
 
     dst_mem = clCreateBuffer(GPU->context,  phy_mem_flag | CL_MEM_WRITE_ONLY, 
                                             sizeof(u_char) * image_size * 3, out_data, &status);
@@ -263,16 +252,18 @@ void bgra2rgb_ocl(struct imx_gpu* GPU, struct g2d_buf* src, int width, int heigh
     status = clSetKernelArg(kernel, 2, sizeof(cl_int), &width);
     CHECK_ERROR(status);
 
-    global_size[0] = width; 
+    /*8MP work-gropu size == 8 */
+    local_size[0] = 16;
+    local_size[1] = 1;
+    global_size[0] = (width + local_size[0] -1) / local_size[0] * local_size[0];  // rounded up
     global_size[1] = height;
 
     sigStart = get_perf_count();
 
-
     status = clEnqueueNDRangeKernel(GPU->queue, kernel, 2, NULL, 
-                                                        global_size, 0, 0, NULL, &prof_event);
+                                                        global_size, local_size, 0, NULL, &prof_event);
 
-    // clFlush(GPU->queue);
+    // clFlush(GPU->queue); 
     clWaitForEvents(1, &prof_event);
 
     sigEnd = get_perf_count();
@@ -298,14 +289,18 @@ void vector_ocl(struct imx_gpu* GPU, struct g2d_buf* src, int width, int height,
     uint64_t sigStart, sigEnd;
     float msVal;
 
+    void* in_data =  (void*)(unsigned long)(unsigned int)src->buf_paddr;
+    void* out_data = (void*)(unsigned long)(unsigned int)dst->buf_paddr;
+
     kernel = clCreateKernel(GPU->program, "vector", &status);
     CHECK_ERROR(status);
 
-    src_mem = clCreateBuffer(GPU->context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR , 
-                                             sizeof(u_char) * image_size * 4, src, &status);
+    src_mem = clCreateBuffer(GPU->context, phy_mem_flag | CL_MEM_READ_ONLY, 
+                                        sizeof(u_char) * image_size * 4, in_data, &status);
+    CHECK_ERROR(status);
 
-    dst_mem = clCreateBuffer(GPU->context,  CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR, 
-                                              sizeof(u_char) * image_size * 3, dst, &status);
+    dst_mem = clCreateBuffer(GPU->context,  phy_mem_flag | CL_MEM_WRITE_ONLY, 
+                                            sizeof(u_char) * image_size * 3, out_data, &status);
     CHECK_ERROR(status);
 
     status = clSetKernelArg(kernel, 0, sizeof(cl_mem), &src_mem);
@@ -319,8 +314,6 @@ void vector_ocl(struct imx_gpu* GPU, struct g2d_buf* src, int width, int height,
     global_size[0] = (width + local_size[0] -1) / local_size[0] * local_size[0];  // rounded up
     global_size[1] = height;
 
-    printf("----- %ld \n",global_size[0]);
-
     sigStart = get_perf_count();
     status = clEnqueueNDRangeKernel(GPU->queue, kernel, 2, NULL, 
                                                         global_size, local_size, 0, NULL, &prof_event);
@@ -329,16 +322,6 @@ void vector_ocl(struct imx_gpu* GPU, struct g2d_buf* src, int width, int height,
     sigEnd = get_perf_count();
     msVal = (sigEnd - sigStart)/1000000;
     printf("time 1: %.2fms \n", msVal);
-
-    sigStart = get_perf_count();
-    // dst = (uint8_t*)clEnqueueMapBuffer(GPU->queue, dst_mem, CL_TRUE, CL_MAP_READ, 0, sizeof(cl_uchar) * image_size, 0, NULL, NULL, &status);
-    status = clEnqueueReadBuffer(GPU->queue, dst_mem, CL_TRUE, 0, sizeof(u_char) * image_size * 3, dst, 0, NULL, NULL);
-    sigEnd = get_perf_count();
-    msVal = (sigEnd - sigStart)/1000;
-    printf("time 2: %.2fus \n", msVal);
-
-    // clEnqueueUnmapMemObject(GPU->queue, src_mem, src, 0, NULL, NULL);
-    // clEnqueueUnmapMemObject(GPU->queue, dst_mem, dst, 0, NULL, NULL);
 
     clReleaseMemObject(src_mem);
     clReleaseMemObject(dst_mem);

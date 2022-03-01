@@ -14,8 +14,6 @@ int main(int argc, char** argv)
     memset(&IMX_GPU, 0, sizeof(imx_gpu));
     cl_init(&IMX_GPU);
 
-    
-    void *handle = NULL;
     struct g2d_buf *in_buffer, *out_buffer;
 
     cv::Mat bgra_image, show_image;
@@ -28,21 +26,14 @@ int main(int argc, char** argv)
     uint64_t sigStart, sigEnd;
     float msVal;
 
-    /* g2d buffer alloc */
-    if(g2d_open(&handle))
-	{
-        printf("g2d_open fail.\n");
-        return -1;
-	}
-
     in_buffer = g2d_alloc(length, 1);
     out_buffer = g2d_alloc(length, 1);
-
     memcpy(in_buffer->buf_vaddr, raw_image.data, length);
+    memset(out_buffer->buf_vaddr, 0, length);
 
     sigStart = get_perf_count();
     zerocpy_ocl_g2d(&IMX_GPU, in_buffer, width, 
-                    height, channels, out_buffer);
+                            height, channels, out_buffer);
     sigEnd = get_perf_count();
     msVal = (sigEnd - sigStart)/1000000;
     printf("Average %.2fms \n", msVal);
@@ -53,5 +44,7 @@ int main(int argc, char** argv)
     dst_image.data = (uchar *) ((unsigned long) out_buffer->buf_vaddr);
     cv::imwrite("cl_image_g2d.jpg", dst_image);
 
-    g2d_close(handle);
+    cl_release(&IMX_GPU);
+    g2d_free(in_buffer);
+    g2d_free(out_buffer);
 }

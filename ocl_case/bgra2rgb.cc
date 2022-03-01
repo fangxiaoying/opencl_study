@@ -10,11 +10,13 @@
 
 int main(int argc, char** argv)
 {
+    uint64_t sigStart, sigEnd;
+    float msVal;
+
+    /*GPU init*/
     struct imx_gpu IMX_GPU;
     memset(&IMX_GPU, 0, sizeof(imx_gpu));
     cl_init(&IMX_GPU);
-
-    struct g2d_buf *in_buffer, *out_buffer;
 
     cv::Mat bgra_image, show_image;
     cv::Mat raw_image = cv::imread("1080p.jpg");
@@ -26,21 +28,12 @@ int main(int argc, char** argv)
     size_t in_length = width * height * 4;
     size_t out_length = width * height * 3;
 
-    uint64_t sigStart, sigEnd;
-    float msVal;
-
-
+    /* G2D memory init */
+    struct g2d_buf *in_buffer, *out_buffer;
     in_buffer = g2d_alloc(in_length, 1);
     out_buffer = g2d_alloc(out_length, 1);
-
     memcpy(in_buffer->buf_vaddr, bgra_image.data, in_length);
-
-    // uint8_t* src_data = (uint8_t *)memalign(64, in_length * sizeof(uint8_t));
-    // uint8_t* dst_data = (uint8_t *)memalign(64, out_length * sizeof(uint8_t));
-    // memcpy(src_data, bgra_image.data, in_length);
-    // bgra2rgb_tmp(&IMX_GPU, src_data, width, height, dst_data);
-
-
+    memset(out_buffer->buf_vaddr, 0, out_length);
 
 
     sigStart = get_perf_count();
@@ -53,9 +46,10 @@ int main(int argc, char** argv)
     cv::Mat dst_image; 
     dst_image.create (height, width, CV_8UC3);
     dst_image.data = (uchar *) ((unsigned long) out_buffer->buf_vaddr);
-
-    // cv::Mat dst_image(height, width, CV_8UC3, dst_data);
-
     cv::cvtColor(dst_image, show_image, cv::COLOR_RGB2BGR);
     cv::imwrite("rgb.jpg", show_image);
+
+    cl_release(&IMX_GPU);
+    g2d_free(in_buffer);
+    g2d_free(out_buffer);
 }

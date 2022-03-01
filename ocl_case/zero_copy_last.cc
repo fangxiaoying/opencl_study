@@ -14,8 +14,6 @@ int main(int argc, char** argv)
     memset(&IMX_GPU, 0, sizeof(imx_gpu));
     cl_init(&IMX_GPU);
 
-    
-    void *handle = NULL;
     struct g2d_buf *in_buffer, *out_buffer;
 
     cv::Mat bgra_image, show_image;
@@ -28,17 +26,11 @@ int main(int argc, char** argv)
     uint64_t sigStart, sigEnd;
     float msVal;
 
-    /* g2d buffer alloc */
-    if(g2d_open(&handle))
-	{
-        printf("g2d_open fail.\n");
-        return -1;
-	}
 
     in_buffer = g2d_alloc(length, 1);
     out_buffer = g2d_alloc(length, 1);
-
     memcpy(in_buffer->buf_vaddr, raw_image.data, length);
+    memset(out_buffer->buf_vaddr, 0, length);
 
     sigStart = get_perf_count();
     zerocpy_ocl_last(&IMX_GPU, in_buffer, width, height,

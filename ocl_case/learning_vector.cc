@@ -25,6 +25,7 @@ int main(int argc, char** argv)
     size_t out_length = width * height * 3;
     in_buffer = g2d_alloc(in_length, 1);
     out_buffer = g2d_alloc(out_length, 1);
+    memset(out_buffer->buf_vaddr, 0, out_length);
 
     uint8_t* src_data = (uint8_t*)calloc(in_length, sizeof(uint8_t));
     for(int i=0; i<in_length; ++i)
@@ -49,6 +50,8 @@ int main(int argc, char** argv)
     }
 
     cl_release(&IMX_GPU);
+    g2d_free(in_buffer);
+    g2d_free(out_buffer);
     free(src_data);
 
 }
