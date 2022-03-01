@@ -73,7 +73,8 @@ void build_program(struct imx_gpu* GPU,  const char* filename)
 
     /* compile opencl program */
     size_t  log_size;
-	status = clBuildProgram(GPU->program, GPU->numDevices, GPU->devices, NULL, NULL, NULL);
+    char* build_options = "-cl-fast-relaxed-math"; 
+	status = clBuildProgram(GPU->program, GPU->numDevices, GPU->devices, build_options, NULL, NULL);
 	if (status < 0) {
         for (cl_uint i = 0; i < GPU->numDevices; ++ i) {
 		    /* Find size of log and print to std output */

@@ -52,4 +52,6 @@ int main(int argc, char** argv)
     dst_image.create (height, width, CV_8UC3);
     dst_image.data = (uchar *) ((unsigned long) out_buffer->buf_vaddr);
     cv::imwrite("cl_image_g2d.jpg", dst_image);
+
+    g2d_close(handle);
 }
