@@ -29,13 +29,13 @@
 GMutex g_mutex;
 
 /*
-base line.  
-use gstreamer pipe line without GPU optimization
+use gstreamer pipe line without GPU optimization. because meet bug
+with videocrop aligment issue, so the case use the 
 
 enviroment:
-imx8mp, L5.10.72
+imx8mp, L5.15.5_1.0.0
 
-meet bug with videocrop aligment issue.
+
 */
 
 
@@ -51,11 +51,13 @@ debug_image(uint8_t * raw_data, uint64_t data_size, int width, int height)
         printf("appsink cap img shape %d x %d \n", width, height);
 
 
-        cv::Mat src_image(height, width, CV_8UC4, raw_data);
-        cv::Mat dst;
-        cv::cvtColor(src_image, dst, cv::COLOR_RGBA2BGR);
-    
-        cv::imwrite("test.jpg", dst);
+        // cv::Mat src_image(height, width, CV_8UC4, raw_data);
+        // cv::Mat dst;
+        // cv::cvtColor(src_image, dst, cv::COLOR_RGBA2BGR);
+        // cv::imwrite("test.jpg", dst);
+
+
+
 
         count = 0;
     }
@@ -225,30 +227,12 @@ int main(int argc, char** argv)
     gst_caps_unref(filter_caps); 
 
 
-    /* 3. implement image preprocess for crop, resize and rotation
-     * for ML application.
-     *
-     * This is a example,  1080P YUYV image crop to 1080 x 1080, resize
-     * to 300 x 300 RBGx image for appsink.
-     * The place need these elements: videocrop, g2d_convert and appsink  
-    */
-    g_object_set(crop,
-                 "top", 0,
-                 "left", 420,
-                 "bottom", 0,
-                 "right", 0,
-                 NULL);
-
-    g_object_set(videoScale,
-                 "add-borders", 0,
-                 NULL);
-
-
+    //3.appsink
     const char* nn_data_format = "RGBx";
     GstCaps* appsink_caps = gst_caps_new_simple("video/x-raw",
                                 "format", G_TYPE_STRING, nn_data_format,
-                                 "width", G_TYPE_INT, 1500,
-                                "height", G_TYPE_INT, 1080,
+                                 "width", G_TYPE_INT, video_width,
+                                "height", G_TYPE_INT, video_height,
                                 NULL);
     //filter has no property name drop,  but appsink have this.
     g_object_set(appsink,
@@ -298,10 +282,7 @@ int main(int argc, char** argv)
 
     // thread 2:  ink to appsink,  inference pipe line
     if (!gst_element_link_many(tee,
-                               queue,
                             //    adaptor2,
-                               crop,
-                               videoScale,
                                convert,
                                appsink,
                                NULL)) {
@@ -311,6 +292,7 @@ int main(int argc, char** argv)
 
     // thread 3:  display pipeline
     if (!gst_element_link_many(tee,
+                               queue,
                                adaptor1,
                             //    overlay,
                             //    adaptor2,

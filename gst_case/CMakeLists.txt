@@ -7,7 +7,9 @@ include_directories(
 add_executable(open_camera_0 open_camera_base.cc)
 target_link_libraries(open_camera_0  ${OpenCV_LIBS} )
 
-
 add_executable(open_camera_1 open_camera_gst.cc)
 target_link_libraries(open_camera_1  ${GSTREAMER_LIBRARIES} ${OpenCV_LIBS} gstallocators-1.0 cairo )
+
+add_executable(open_camera_2 open_camera_v1.cc)
+target_link_libraries(open_camera_2  ${GSTREAMER_LIBRARIES} ${OpenCV_LIBS} gstallocators-1.0 cairo )
 
