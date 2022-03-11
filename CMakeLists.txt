@@ -24,8 +24,8 @@ pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0>=1.4)
 
 
 add_subdirectory(lib/ocl)
-# add_subdirectory(deepview_engine)
 add_subdirectory(ocl_case)
+add_subdirectory(gst_case)
 
 
 

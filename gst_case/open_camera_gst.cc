@@ -3,15 +3,21 @@
 
 #include <glib.h>
 #include <gst/gst.h>
+#include <gst/allocators/gstdmabuf.h>
 #include <cairo/cairo.h>
 
 #include <opencv2/opencv.hpp>
 #include <fstream>
 
-#include "../ocl/ocl_functions.h"
+#define WIDTH  1920
+#define HEIGHT 1080
 
-#define WIDTH  640
-#define HEIGHT 480
+#define FONT_SIZE_LABEL_SCORE 25
+#define FONT_SIZE_RUNTIME 35
+#define INIT_POSITION_RUNTIME_STR 30
+
+// #define ENABLE_G2D
+// #define ENABLE_FPS
 
 #define ENABLE_G2D
 #ifdef ENABLE_G2D
@@ -22,20 +28,47 @@
 
 GMutex g_mutex;
 
+/*
+base line.  
+use gstreamer pipe line without GPU optimization
+
+enviroment:
+imx8mp, L5.15.5_1.0.0
+
+performance:
+fps 19, time 51ms,
+cup loading:
+open_camera_0 : 71.1 %
+weston: 8.0 %
+*/
+
 
 int count = 0;
 
 static void
 debug_image(uint8_t * raw_data, uint64_t data_size, int width, int height)
 {
-    printf("appsink cap img shape %d x %d \n", width,height);
+    count++;
 
-    cv::Mat src_image(height, width, CV_8UC4, raw_data);
+    if(50 == count) {
+            
+        printf("appsink cap img shape %d x %d \n", width, height);
 
-    cv::Rect rect(2, 2, 300, 300);
 
-    cv::Mat dst,show;
-    cv::cvtColor(src_image(rect), dst, cv::COLOR_BGRA2RGB);
+        cv::Mat src_image(height, width, CV_8UC4, raw_data);
+        cv::Mat dst;
+        cv::cvtColor(src_image, dst, cv::COLOR_RGBA2BGR);
+
+        // cv::Mat src_image(height, width, CV_8UC2, raw_data);
+        // cv::Mat dst;
+        // cv::cvtColor(src_image, dst, cv::COLOR_YUV2BGR_YUY2);
+    
+        cv::imwrite("test.jpg", dst);
+
+        count = 0;
+    }
+
+
 }
 
 
@@ -62,6 +95,8 @@ new_sample(GstElement* sink, gpointer* data)
         return GST_FLOW_ERROR;
     }
 
+    // printf("GSTMemory:%d\n",gst_is_dmabuf_memory(gst_buffer_peek_memory (buffer,0)));
+    
     GstMapInfo mapinfo;
     if (!gst_buffer_map(buffer, &mapinfo, GST_MAP_READ)) {
         g_printerr("Unable to map video frame\n");
@@ -69,15 +104,10 @@ new_sample(GstElement* sink, gpointer* data)
         return GST_FLOW_ERROR;
     }
 
-
     g_mutex_lock(&g_mutex);
     
-
-
     debug_image(mapinfo.data, mapinfo.size, width, height);
 
-
-    
     gst_buffer_unmap(buffer, &mapinfo);
     gst_sample_unref(sample);
 
@@ -95,9 +125,39 @@ draw_overlay(GstElement* overlay,
              gpointer    user_data)
 {
 
+    //Set Cairo config
+    cairo_set_line_width(cr, 3);
+    cairo_select_font_face(cr,
+                           "Courier",
+                           CAIRO_FONT_SLANT_NORMAL,
+                           CAIRO_FONT_WEIGHT_BOLD);
+    cairo_set_font_size(cr, FONT_SIZE_RUNTIME);
+
+    // Draw model runtime
+    cairo_move_to(cr, 10, INIT_POSITION_RUNTIME_STR);
+    cairo_set_font_size(cr, FONT_SIZE_LABEL_SCORE);
+
+    // Draw runtime string
+    char runtime_str[1024];
+
+    float xmin = 100.0F;
+    float xmax = 500.0F;
+    float ymin = 100.0F;
+    float ymax = 500.0F;
+
     g_mutex_lock(&g_mutex); // Lock the mutex to avoid new_sample overwriting data
 
-    printf("* run into draw_overlay ! \n*");
+    cairo_set_source_rgb(cr, 1.0, 0.0, 0.0);
+    cairo_move_to(cr, xmin, ymin);
+    cairo_set_source_rgb(cr, 1.0, 0.0, 0.0);
+    cairo_move_to(cr, xmin, ymin);
+    cairo_line_to(cr, xmax, ymin);
+    cairo_line_to(cr, xmax, ymax);
+    cairo_line_to(cr, xmin, ymax);
+    cairo_line_to(cr, xmin, ymin);
+    cairo_stroke_preserve(cr);
+
+    // printf("* run into draw_overlay ! \n*");
 
     g_mutex_unlock(&g_mutex);
 }
@@ -141,7 +201,11 @@ int main(int argc, char** argv)
     GstElement* udp_sink   = gst_element_factory_make("udpsink", NULL);
     GstElement* vpuenc_h264 = gst_element_factory_make("vpuenc_h264", NULL);
     GstElement* rtph264pay  = gst_element_factory_make("rtph264pay", NULL);
+#ifdef ENABLE_FPS
+    GstElement* fpsdisplay = gst_element_factory_make("fpsdisplaysink", "fpsdisplay");
+#else
     GstElement* display = gst_element_factory_make("autovideosink", "display");
+#endif
 
     if (!source || !filter || !crop || !tee || !queue || !videoScale ||
         !convert || !appsink || !overlay || !udp_sink || !adaptor1 ||
@@ -156,7 +220,7 @@ int main(int argc, char** argv)
     g_object_set(source, "device", camera, NULL);
 
     // 2. filter
-    const char* cam_format = "BGRx";
+    const char* cam_format = "YUY2";
     GstCaps* filter_caps = gst_caps_new_simple("video/x-raw",
                                 "format", G_TYPE_STRING, cam_format,
                                  "width", G_TYPE_INT, video_width,
@@ -168,14 +232,31 @@ int main(int argc, char** argv)
                  NULL);
     gst_caps_unref(filter_caps); 
 
-    //3. app sink filter, used for nn inference
-    const char* nn_data_format = "BGRA";
-    int appsink_w = (input_width / 16 + 1) * 16;
-    int appsink_h = (input_height / 16 + 1) * 16;
+
+    /* 3. implement image preprocess for crop, resize and rotation
+     * for ML application.
+     *
+     * This is a example,  1080P YUYV image crop to 1080 x 1080, resize
+     * to 300 x 300 RBGx image for appsink.
+     * The place need these elements: videocrop, g2d_convert and appsink  
+    */
+    g_object_set(crop,
+                 "top", 0,
+                 "left", 420,
+                 "bottom", 0,
+                 "right", 0,
+                 NULL);
+
+    g_object_set(videoScale,
+                 "add-borders", 0,
+                 NULL);
+
+
+    const char* nn_data_format = "RGBx";
     GstCaps* appsink_caps = gst_caps_new_simple("video/x-raw",
                                 "format", G_TYPE_STRING, nn_data_format,
-                                 "width", G_TYPE_INT, appsink_w,
-                                "height", G_TYPE_INT, appsink_h,
+                                 "width", G_TYPE_INT, 1500,
+                                "height", G_TYPE_INT, 1080,
                                 NULL);
     //filter has no property name drop,  but appsink have this.
     g_object_set(appsink,
@@ -188,7 +269,7 @@ int main(int argc, char** argv)
 
     /* create callback funtion */
     g_signal_connect(appsink, "new-sample", G_CALLBACK(new_sample), NULL);
-    // g_signal_connect(overlay, "draw", G_CALLBACK(draw_overlay), NULL);
+    g_signal_connect(overlay, "draw", G_CALLBACK(draw_overlay), NULL);
 
 
     g_object_set(queue, "leaky", 2, "max-size-buffers", 1, NULL);
@@ -210,10 +291,14 @@ int main(int argc, char** argv)
                          adaptor1,
                          overlay,
                          adaptor2,
+#ifdef ENABLE_FPS
+                         fpsdisplay,
+#else
                          display,
+#endif
                          NULL);
 
-    if (!gst_element_link_many(source, filter, tee, NULL)) {
+    if (!gst_element_link_many(source, filter, crop, tee, NULL)) {
         g_printerr("Failed to link input cap_pipeline\n");
         return EXIT_FAILURE;
     }
@@ -222,6 +307,9 @@ int main(int argc, char** argv)
     // thread 2:  ink to appsink,  inference pipe line
     if (!gst_element_link_many(tee,
                                queue,
+                            //    adaptor2,
+                            //    crop,
+                               videoScale,
                                convert,
                                appsink,
                                NULL)) {
@@ -229,14 +317,21 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
-    // // thread 3:  display pipeline
-    // if (!gst_element_link_many(tee,
-    //                            overlay,
-    //                            display,
-    //                             NULL)) {
-    //     g_printerr("Failed to link display cap_pipeline\n");
-    //     return EXIT_FAILURE;
-    // }
+    // thread 3:  display pipeline
+    if (!gst_element_link_many(tee,
+                               queue,
+                               adaptor1,
+                            //    overlay,
+                            //    adaptor2,
+#ifdef ENABLE_FPS
+                               fpsdisplay,
+#else
+                               display,
+#endif
+                                NULL)) {
+        g_printerr("Failed to link display cap_pipeline\n");
+        return EXIT_FAILURE;
+    }
 
     gst_element_set_state(cap_pipeline, GST_STATE_PLAYING);
     g_main_loop_run(loop);
