@@ -33,12 +33,9 @@ int main(int argc, char** argv)
     memcpy(in_buffer->buf_vaddr, raw_image.data, length);
     memset(out_buffer->buf_vaddr, 0, length);
 
-
-    /*1080p resize to 640 x 360 */
     sigStart = get_perf_count();
-    resize_viv(&IMX_GPU, (void*)(unsigned long)(unsigned int)in_buffer->buf_paddr,
-                    (void*)(unsigned long)(unsigned int)out_buffer->buf_paddr,
-                                                        width, height, 640, 360, true);
+    copy_viv(&IMX_GPU, (void*)(unsigned long)(unsigned int)in_buffer->buf_paddr, 
+                    (void*)(unsigned long)(unsigned int)out_buffer->buf_paddr, length, true);
     sigEnd = get_perf_count();
     msVal = (sigEnd - sigStart)/1000000;
     printf("Average %.2fms \n", msVal);
@@ -48,5 +45,5 @@ int main(int argc, char** argv)
     dst_image.create (height, width, CV_8UC4);
     dst_image.data = (uchar *) ((unsigned long) out_buffer->buf_vaddr);
     cv::cvtColor(dst_image, show_image, cv::COLOR_BGRA2BGR);
-    cv::imwrite("resize.jpg", show_image);
+    cv::imwrite("copy.jpg", show_image);
 }

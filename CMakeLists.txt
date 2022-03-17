@@ -18,12 +18,17 @@ if(NOT OpenCV_FOUND)
     endif()
 endif()
 
+
+add_definitions(-DUSE_ION)
+
+
 find_package(PkgConfig)
 pkg_check_modules(GLIB REQUIRED glib-2.0)
 pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0>=1.4)
 
 
 add_subdirectory(lib/ocl)
+add_subdirectory(lib/gst)
 add_subdirectory(ocl_case)
 add_subdirectory(gst_case)
 

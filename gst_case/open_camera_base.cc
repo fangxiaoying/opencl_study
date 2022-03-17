@@ -19,20 +19,21 @@ just use opencv read and show camera data.
 
 enviroment:
 imx8mp, L5.15.5_1.0.0
+show video size 1080p
 
 performance:
-fps 19, time 51ms,
+fps 12
 cup loading:
-open_camera_0 : 71.1 %
-weston: 8.0 %
+open_camera_0 : 103 %
+weston: 9 %
 */
  
 int main()
 {
 	//读取视频或摄像头
 	cv::VideoCapture capture(3);
-    capture.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
-    capture.set(cv::CAP_PROP_FRAME_HEIGHT, 720);
+    capture.set(cv::CAP_PROP_FRAME_WIDTH, 1920);
+    capture.set(cv::CAP_PROP_FRAME_HEIGHT, 1080);
  
 	while (true)
 	{

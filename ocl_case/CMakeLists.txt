@@ -22,3 +22,8 @@ target_link_libraries(bgra2rgb-ocl  ${OpenCV_LIBS} GPU g2d)
 add_executable(vec-ocl learning_vector.cc )
 target_link_libraries(vec-ocl  ${OpenCV_LIBS} GPU g2d)
 
+add_executable(copy copy.cc )
+target_link_libraries(copy  ${OpenCV_LIBS} GPU g2d)
+
+add_executable(resize resize.cc )
+target_link_libraries(resize  ${OpenCV_LIBS} GPU g2d)

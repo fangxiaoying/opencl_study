@@ -127,7 +127,7 @@ void zerocpy_ocl_g2d(struct imx_gpu* GPU, struct g2d_buf* src, int width, int he
     float msVal;
 
     void* in_data =  (void*)(unsigned long)(unsigned int)src->buf_paddr;
-    void* out_data = (void*)(unsigned long)(unsigned int) dst->buf_paddr;
+    void* out_data = (void*)(unsigned long)(unsigned int)dst->buf_paddr;
 
 
     kernel = clCreateKernel(GPU->program, "copy_data", &status);
@@ -179,7 +179,7 @@ void zerocpy_ocl_last(struct imx_gpu* GPU, struct g2d_buf* src, int width, int h
     float msVal;
 
     void* in_data =  (void*)(unsigned long)(unsigned int)src->buf_paddr;
-    void* out_data = (void*)(unsigned long)(unsigned int) dst->buf_paddr;
+    void* out_data = (void*)(unsigned long)(unsigned int)dst->buf_paddr;
 
 
     kernel = clCreateKernel(GPU->program, "zero_copy", &status);
