@@ -1,0 +1,30 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "aarch64-poky-linux-gcc - 生成和调试活动文件",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceRoot}/build/gst_case/g2d_resize",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "为 gdb 启用整齐打印",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "C/C++: aarch64-poky-linux-gcc 生成活动文件",
+            "miDebuggerPath": "/opt/fsl-imx-internal-xwayland/5.10-hardknott/sysroots/x86_64-pokysdk-linux/usr/bin/aarch64-poky-linux/aarch64-poky-linux-gdb",
+            "miDebuggerServerAddress": "10.193.101.244:1234"
+        }
+    ]
+}

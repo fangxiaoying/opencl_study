@@ -31,6 +31,15 @@ struct imx_gpu {
     cl_program       program;
     cl_command_queue queue;
 };
+typedef struct imx_gpu   ocl_device;
+
+struct kernel_obj {
+    ocl_device *GPU;
+    cl_kernel kernel;
+    cl_mem *mems;
+    cl_event prof_event;
+};
+typedef struct kernel_obj ocl_function;
 
 void create_context(struct imx_gpu* GPU);
 void cl_init(struct imx_gpu* GPU);

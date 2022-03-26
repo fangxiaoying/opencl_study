@@ -75,5 +75,19 @@ __kernel void resize(read_only image2d_t src_image,
       float2 normalizedCoordinate = convert_float2(coordinate) * (float2)(Normalize_w, Normalize_h);
       float4 colour = read_imagef(src_image, sampler, normalizedCoordinate);
       write_imagef(dst_image, coordinate, colour);
-} 
+}
 
+__kernel void padding(__global const uchar *input_data,
+            __global uchar *output_data, const int src_w, const int pad_right)
+{
+
+      int x = get_global_id(0);
+      int y = get_global_id(1);
+
+      int in_idx =  x + y * src_w;
+      int out_idx = in_idx + y * pad_right;
+      
+      // output_data[out_idx] = input_data[out_idx];
+      uchar4 in = vload4(in_idx, input_data);
+      vstore4(in, out_idx, output_data);
+}

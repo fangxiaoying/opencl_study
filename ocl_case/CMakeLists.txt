@@ -27,3 +27,6 @@ target_link_libraries(copy  ${OpenCV_LIBS} GPU g2d)
 
 add_executable(resize resize.cc )
 target_link_libraries(resize  ${OpenCV_LIBS} GPU g2d)
+
+add_executable(padding fillBorder.cc )
+target_link_libraries(padding  ${OpenCV_LIBS} GPU g2d)

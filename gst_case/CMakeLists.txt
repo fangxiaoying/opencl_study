@@ -24,3 +24,6 @@ target_link_libraries(open_camera_tmp  ${GSTREAMER_LIBRARIES} ${OpenCV_LIBS} GPU
 add_executable(g2d_ g2d_test.cc)
 target_link_libraries(g2d_  ${GSTREAMER_LIBRARIES} ${OpenCV_LIBS} GPU GST gstallocators-1.0 cairo g2d)
 
+add_executable(g2d_resize g2d_resize.cc)
+target_link_libraries(g2d_resize  ${GSTREAMER_LIBRARIES} ${OpenCV_LIBS} GPU GST gstallocators-1.0 cairo g2d)
+

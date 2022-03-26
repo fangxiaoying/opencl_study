@@ -7,7 +7,6 @@ include_directories(
     ${CMAKE_SYSROOT}/usr/include/imx
 )
 
-
 aux_source_directory(. GST_SOURCE)
 add_library(${MODULE_GST} STATIC ${GST_SOURCE})
-target_link_libraries(${MODULE_GST} g2d)
+target_link_libraries(${MODULE_GST} ${GSTREAMER_LIBRARIES} ${GSTVIDEO_LIBRARIES} g2d)

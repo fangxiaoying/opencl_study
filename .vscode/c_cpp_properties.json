@@ -4,10 +4,17 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/opt/fsl-imx-xwayland/5.10-hardknott/sysroots/cortexa53-crypto-poky-linux/usr/include"
+                "${workspaceFolder}/lib/gst",
+                "/opt/fsl-imx-internal-xwayland/5.10-hardknott/sysroots/cortexa53-crypto-poky-linux/usr/lib/glib-2.0/include",
+                "/opt/fsl-imx-internal-xwayland/5.10-hardknott/sysroots/cortexa53-crypto-poky-linux/usr/include",
+                "/opt/fsl-imx-internal-xwayland/5.10-hardknott/sysroots/cortexa53-crypto-poky-linux/usr/include/c++/10.2.0",
+                "/opt/fsl-imx-internal-xwayland/5.10-hardknott/sysroots/cortexa53-crypto-poky-linux/usr/include/c++/10.2.0/aarch64-poky-linux",
+                "/opt/fsl-imx-internal-xwayland/5.10-hardknott/sysroots/cortexa53-crypto-poky-linux/usr/include",
+                "/opt/fsl-imx-internal-xwayland/5.10-hardknott/sysroots/cortexa53-crypto-poky-linux/usr/include/gstreamer-1.0",
+                "/opt/fsl-imx-internal-xwayland/5.10-hardknott/sysroots/cortexa53-crypto-poky-linux/usr/include/glib-2.0"
             ],
             "defines": [],
-            "compilerPath": "/usr/bin/gcc",
+            "compilerPath": "/opt/fsl-imx-internal-xwayland/5.10-hardknott/sysroots/x86_64-pokysdk-linux/usr/bin/aarch64-poky-linux/aarch64-poky-linux-gcc",
             "cStandard": "gnu17",
             "cppStandard": "gnu++14",
             "intelliSenseMode": "linux-gcc-x64"

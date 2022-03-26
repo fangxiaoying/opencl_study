@@ -20,11 +20,13 @@ endif()
 
 
 add_definitions(-DUSE_ION)
+add_definitions(-DUSE_G2D)
 
 
 find_package(PkgConfig)
 pkg_check_modules(GLIB REQUIRED glib-2.0)
 pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0>=1.4)
+pkg_check_modules(GSTVIDEO  REQUIRED gstreamer-video-1.0>=1.4)
 
 
 add_subdirectory(lib/ocl)

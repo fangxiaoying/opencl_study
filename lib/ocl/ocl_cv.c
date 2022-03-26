@@ -1,5 +1,6 @@
 #include "ocl_cv.h"
 #include <CL/cl_ext_viv.h>
+#include <string.h>
 
 #define benchmark
 
@@ -95,9 +96,17 @@ void resize_viv(struct imx_gpu* GPU, void* src_ptr, void* dst_ptr, int src_w, in
 #endif
 
     memset(&src_desc, 0, sizeof(src_desc));
-    src_desc.image_type   = CL_MEM_OBJECT_IMAGE2D_ARRAY;
+    src_desc.image_type   = CL_MEM_OBJECT_IMAGE2D;
     src_desc.image_width  = src_w;
     src_desc.image_height = src_h;
+    src_desc.image_depth  = 1;
+    src_desc.image_array_size = 1;
+    src_desc.image_row_pitch = src_w * 4; //RGBA
+    src_desc.image_slice_pitch = src_w * src_h * 4;
+    src_desc.num_mip_levels = 0;
+    src_desc.num_samples = 0;
+    src_desc.buffer = NULL;
+
 
     memset(&dst_desc, 0, sizeof(dst_desc));
     dst_desc.image_type   = CL_MEM_OBJECT_IMAGE2D;
@@ -108,11 +117,11 @@ void resize_viv(struct imx_gpu* GPU, void* src_ptr, void* dst_ptr, int src_w, in
     CHECK_ERROR(status);
 
 
-    src_image = clCreateImage(GPU->context, phy_mem_flag | CL_MEM_READ_ONLY,
+    src_image = clCreateImage(GPU->context, CL_MEM_USE_HOST_PHYSICAL_ADDR_VIV| CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY,
                                         &image_format, &src_desc, src_ptr, &status);
     CHECK_ERROR(status);
 
-    src_image = clCreateImage(GPU->context, phy_mem_flag | CL_MEM_WRITE_ONLY,
+    dst_image = clCreateImage(GPU->context, phy_mem_flag | CL_MEM_WRITE_ONLY,
                                         &image_format, &dst_desc, dst_ptr, &status);
 
     CHECK_ERROR(status);
@@ -135,4 +144,78 @@ void resize_viv(struct imx_gpu* GPU, void* src_ptr, void* dst_ptr, int src_w, in
     clReleaseMemObject(src_image);
     clReleaseMemObject(dst_image);
     clReleaseKernel(kernel);   
+}
+
+/*  padding image simple implement, only support fill black pixels on image right
+ *  and bottom and only support RGBA/BGRA/BGRX/RGBX format
+ */
+
+void padding_init(ocl_device* GPU, ocl_function* fill, struct g2d_buf *src, 
+        struct g2d_buf **dst, int src_w, int src_h, int *fill_right, int *fill_bottom)
+{
+    fill->GPU = GPU;
+    fill->mems = (cl_mem*)malloc(sizeof(cl_mem) * 2);
+
+    // output size align 8x8 block
+    size_t src_size = src_w * src_h * 4;
+    *fill_right = ((src_w + *fill_right + 7) >> 3 << 3) - src_w;
+    *fill_bottom = ((src_h + *fill_bottom + 7) >> 3 << 3) - src_h;
+    size_t dst_size =  (src_w + *fill_right) * (src_h + *fill_bottom) * 4;
+
+    
+
+    *dst = g2d_alloc(dst_size, 0);
+    void* src_ptr =  (void*)(unsigned long)(unsigned int)src->buf_paddr;
+    void* dst_ptr = (void*)(unsigned long)(unsigned int)(*dst)->buf_paddr;
+    memset((u_char *)((unsigned long)(*dst)->buf_vaddr), 0, dst_size);
+
+    
+
+    fill->kernel = clCreateKernel(GPU->program, "padding", &status);
+    CHECK_ERROR(status);
+
+    fill->mems[0] = clCreateBuffer(GPU->context, phy_mem_flag | CL_MEM_READ_ONLY, 
+                                             sizeof(u_char) * src_size, src_ptr, &status);
+
+    fill->mems[1] = clCreateBuffer(GPU->context,  phy_mem_flag | CL_MEM_WRITE_ONLY, 
+                                             sizeof(u_char) * dst_size, dst_ptr, &status);
+    CHECK_ERROR(status);
+
+
+
+    status = clSetKernelArg(fill->kernel, 0, sizeof(cl_mem), &fill->mems[0]);
+    status = clSetKernelArg(fill->kernel, 1, sizeof(cl_mem), &fill->mems[1]);
+    status = clSetKernelArg(fill->kernel, 2, sizeof(cl_int), &src_w);
+    status = clSetKernelArg(fill->kernel, 3, sizeof(cl_int), fill_right);
+    CHECK_ERROR(status);
+}
+
+void padding_run(ocl_function* fill, int src_w, int src_h, bool flush)
+{
+    size_t local_size[2];
+    size_t global_size[2];
+
+    // size_t src_length = src_w * src_h * 4;
+
+    local_size[0] = 8;
+    local_size[1] = 8;
+    global_size[0] = src_w;  // rounded up
+    global_size[1] = src_h;
+        
+    status = clEnqueueNDRangeKernel(fill->GPU->queue, fill->kernel, 2, NULL, 
+                                                global_size, local_size, 0, NULL, &fill->prof_event);
+  
+    if(true == flush) 
+        clFlush(fill->GPU->queue);
+    else
+        clWaitForEvents(1, &fill->prof_event);
+}
+
+void padding_release(ocl_function* fill, struct g2d_buf *dst)
+{
+    g2d_free(dst);
+    clReleaseMemObject(fill->mems[0]);
+    clReleaseMemObject(fill->mems[1]);
+    clReleaseKernel(fill->kernel);
+    free(fill->mems);
 }
