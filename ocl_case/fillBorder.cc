@@ -21,15 +21,15 @@ int main(int argc, char** argv)
 
     cv::Mat bgra_image, show_image;
     cv::Mat raw_image = cv::imread("1080p.jpg");
+    cv::resize(raw_image, raw_image,cv::Size (640,480));
     cv::cvtColor(raw_image,bgra_image, cv::COLOR_BGR2BGRA);
 
     int width  = bgra_image.cols;
     int height = bgra_image.rows;
 
 
-
     int pad_right  = 0;
-    int pad_bottom = 1920 - 1080;
+    int pad_bottom = 640 - 480;
 
     size_t in_length = width * height * 4;
     
@@ -41,10 +41,11 @@ int main(int argc, char** argv)
     // memset(out_buffer->buf_vaddr, 0, out_length);
 
 
+    sigStart = get_perf_count();
     padding_init(&IMX_GPU, &fill, in_buffer, &out_buffer, width, height,
                                                   &pad_right, &pad_bottom);
 
-    sigStart = get_perf_count();
+    
     padding_run(&fill, width, height, false);
     sigEnd = get_perf_count();
     msVal = (sigEnd - sigStart)/1000000;

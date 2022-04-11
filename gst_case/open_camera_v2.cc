@@ -30,7 +30,7 @@
 #endif
 
 /*
-gstreamer add crop rbga2rbg reseize.  
+appsink use fd, not need map, improve the system performance
 
 
 enviroment:
@@ -79,21 +79,17 @@ static void
 debug_dma_buffer(int fd, struct appdata* app, int width, int height, int channels)
 {
     unsigned long src_paddr = 0;
-    unsigned long dst_paddr = 0;
+    void* dst_paddr = 0;
     u_int size = width * height;
 
-    cl_init(&app->IMX_GPU);
-    
     count++;
 
-    if(50 == count) {            
-        printf(" log file 0 \n");
+    if(50 == count) {          
         printf("appsink cap img shape %d x %d \n", width, height);
 
-        printf(" log file \n");
 
         src_paddr = phy_addr_from_fd(fd);
-        dst_paddr = app->g2d_buffers[0]->buf_paddr;
+        dst_paddr = (void*)(unsigned long)(unsigned int)app->g2d_buffers[0]->buf_paddr;
 
 
         copy_viv(&app->IMX_GPU, (void*)src_paddr, (void*)dst_paddr, size * channels, true);
@@ -188,8 +184,7 @@ int main(int argc, char** argv)
 
     struct appdata app;
     memset(&app, 0, sizeof(appdata));
-    // cl_init(&app.IMX_GPU);
-
+    cl_init(&app.IMX_GPU);
     for(int i = 0; i < BUFFER_NUMS; i++)
 	{
         switch (i)

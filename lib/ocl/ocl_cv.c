@@ -13,8 +13,12 @@ void copy_viv(struct imx_gpu* GPU, void* src, void* dst, u_int size, bool is_phy
     cl_kernel kernel;
     cl_mem src_mem, dst_mem;
     
-    size_t local_size[2];
-    size_t global_size[2];
+    // size_t local_size[2];
+    // size_t global_size[2];
+    size_t local_size;
+    size_t global_size;
+
+
 
     if( is_phy_addr != true) {
         printf("input addr not physical addrees! \n");
@@ -23,6 +27,10 @@ void copy_viv(struct imx_gpu* GPU, void* src, void* dst, u_int size, bool is_phy
 
     uint64_t sigStart, sigEnd;
     float msVal;
+
+#ifdef benchmark
+    sigStart = get_perf_count();
+#endif
 
     kernel = clCreateKernel(GPU->program, "copy", &status);
     CHECK_ERROR(status);
@@ -39,17 +47,21 @@ void copy_viv(struct imx_gpu* GPU, void* src, void* dst, u_int size, bool is_phy
     CHECK_ERROR(status);
 
     /*8MP work-gropu size == 8 */
-    local_size[0] = 16;
-    local_size[1] = 1;
-    global_size[0] = (size + local_size[0] - 1) / local_size[0];  // rounded up
-    global_size[1] = 1;
+    // local_size[0] = 16;
+    // local_size[1] = 1;
+    // global_size[0] = (size + local_size[0] - 1) / local_size[0];  // rounded up
+    // global_size[1] = 1;
 
-#ifdef benchmark
-    sigStart = get_perf_count();
-#endif
+    local_size = 16;
+    global_size = (size + local_size - 1) / local_size;  // rounded up
 
-    status = clEnqueueNDRangeKernel(GPU->queue, kernel, 2, NULL, 
-                                                        global_size, local_size, 0, NULL, &prof_event);
+
+    // status = clEnqueueNDRangeKernel(GPU->queue, kernel, 2, NULL, 
+    //                                                     global_size, local_size, 0, NULL, &prof_event);
+
+    status = clEnqueueNDRangeKernel(GPU->queue, kernel, 1, NULL, 
+                                                        &global_size, &local_size, 0, NULL, &prof_event);
+
     // clFlush(GPU->queue);
     clWaitForEvents(1, &prof_event);
 
@@ -164,7 +176,7 @@ void padding_init(ocl_device* GPU, ocl_function* fill, struct g2d_buf *src,
 
     
 
-    *dst = g2d_alloc(dst_size, 0);
+    *dst = g2d_alloc(dst_size, 1);
     void* src_ptr =  (void*)(unsigned long)(unsigned int)src->buf_paddr;
     void* dst_ptr = (void*)(unsigned long)(unsigned int)(*dst)->buf_paddr;
     memset((u_char *)((unsigned long)(*dst)->buf_vaddr), 0, dst_size);
@@ -218,4 +230,107 @@ void padding_release(ocl_function* fill, struct g2d_buf *dst)
     clReleaseMemObject(fill->mems[1]);
     clReleaseKernel(fill->kernel);
     free(fill->mems);
+}
+
+void bgra2rgb_ocl(struct imx_gpu* GPU, struct g2d_buf* src, int width, int height, struct g2d_buf* dst)
+{
+    cl_event prof_event;
+    cl_kernel kernel;
+    cl_mem src_mem, dst_mem;
+    size_t image_size =  width * height;
+    size_t local_size[2];
+    size_t global_size[2];
+
+    uint64_t sigStart, sigEnd;
+    float msVal;
+
+    void* in_data =  (void*)(unsigned long)(unsigned int)src->buf_paddr;
+    void* out_data = (void*)(unsigned long)(unsigned int)dst->buf_paddr;
+
+
+    kernel = clCreateKernel(GPU->program, "BGRA2RGB", &status);
+    CHECK_ERROR(status);
+
+    src_mem = clCreateBuffer(GPU->context, phy_mem_flag | CL_MEM_READ_ONLY, 
+                                        sizeof(u_char) * image_size * 4, in_data, &status);
+
+    dst_mem = clCreateBuffer(GPU->context,  phy_mem_flag | CL_MEM_WRITE_ONLY, 
+                                            sizeof(u_char) * image_size * 3, out_data, &status);
+    CHECK_ERROR(status);
+
+    status = clSetKernelArg(kernel, 0, sizeof(cl_mem), &src_mem);
+    status = clSetKernelArg(kernel, 1, sizeof(cl_mem), &dst_mem);
+    status = clSetKernelArg(kernel, 2, sizeof(cl_int), &width);
+    CHECK_ERROR(status);
+
+    /*8MP work-gropu size == 8 */
+    local_size[0] = 16;
+    local_size[1] = 1;
+    global_size[0] = (width + local_size[0] -1) / local_size[0] * local_size[0];  // rounded up
+    global_size[1] = height;
+
+    sigStart = get_perf_count();
+
+    status = clEnqueueNDRangeKernel(GPU->queue, kernel, 2, NULL, 
+                                                        global_size, local_size, 0, NULL, &prof_event);
+
+    // clFlush(GPU->queue); 
+    clWaitForEvents(1, &prof_event);
+
+    sigEnd = get_perf_count();
+    msVal = (sigEnd - sigStart)/1000000;
+    printf("time 1: %.2fms \n", msVal);
+
+
+    clReleaseMemObject(src_mem);
+    clReleaseMemObject(dst_mem);
+    clReleaseKernel(kernel);    
+}
+
+void BGRA2RGB_init(ocl_function* csc)
+{
+    csc->kernel = clCreateKernel(csc->GPU->program, "BGRA2RGB", &status);
+    CHECK_ERROR(status);
+
+    csc->mems = (cl_mem*)calloc(2, sizeof(cl_mem));
+}
+
+void BGRA2RGB_run(ocl_function* csc, void * host_src, void* host_dst, int width, int height)
+{
+    size_t image_size = width * height;
+    size_t local_size[2];
+    size_t global_size[2];
+
+    csc->mems[0] = clCreateBuffer(csc->GPU->context, phy_mem_flag | CL_MEM_READ_ONLY, 
+                                        sizeof(u_char) * image_size * 4, host_src, &status);
+
+    csc->mems[1] = clCreateBuffer(csc->GPU->context,  phy_mem_flag | CL_MEM_WRITE_ONLY, 
+                                            sizeof(u_char) * image_size * 3, host_dst, &status);
+    CHECK_ERROR(status);
+
+    status = clSetKernelArg(csc->kernel, 0, sizeof(cl_mem), &csc->mems[0]);
+    status |= clSetKernelArg(csc->kernel, 1, sizeof(cl_mem), &csc->mems[1]);
+    status |= clSetKernelArg(csc->kernel, 2, sizeof(cl_int), &width);
+    CHECK_ERROR(status);
+
+    /*8MP work-gropu size == 8 */
+    local_size[0] = 16;
+    local_size[1] = 1;
+    global_size[0] = (width + local_size[0] -1) / local_size[0] * local_size[0];  // rounded up
+    global_size[1] = height;
+
+    status = clEnqueueNDRangeKernel(csc->GPU->queue, csc->kernel, 2, NULL, 
+                                                 global_size, local_size, 0, NULL, &csc->prof_event);
+
+    // clFlush(GPU->queue); 
+    clWaitForEvents(1, &csc->prof_event);
+
+}
+
+void BGRA2RGB_release(ocl_function* csc)
+{
+    clReleaseMemObject(csc->mems[0]);
+    clReleaseMemObject(csc->mems[1]);
+    clReleaseKernel(csc->kernel);  
+    free(csc->mems);
 }

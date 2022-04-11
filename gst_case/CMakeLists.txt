@@ -18,6 +18,9 @@ target_link_libraries(open_camera_1  ${GSTREAMER_LIBRARIES} ${OpenCV_LIBS} gstal
 add_executable(open_camera_2 open_camera_v2.cc)
 target_link_libraries(open_camera_2  ${GSTREAMER_LIBRARIES} ${OpenCV_LIBS} GPU GST gstallocators-1.0 cairo g2d)
 
+add_executable(open_camera_3 open_camera_v3.cc)
+target_link_libraries(open_camera_3  ${GSTREAMER_LIBRARIES} ${OpenCV_LIBS} GPU GST gstallocators-1.0 cairo g2d)
+
 add_executable(open_camera_tmp open_camera_tmp.cc)
 target_link_libraries(open_camera_tmp  ${GSTREAMER_LIBRARIES} ${OpenCV_LIBS} GPU GST gstallocators-1.0 cairo g2d)
 

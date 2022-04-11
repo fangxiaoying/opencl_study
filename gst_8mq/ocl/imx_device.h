@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-struct imx_gpu {
+typedef struct {
     cl_platform_id   firstPlatformId;
     cl_uint          numPlatforms;
     cl_context       context;
@@ -30,22 +30,21 @@ struct imx_gpu {
     cl_uint          numDevices;
     cl_program       program;
     cl_command_queue queue;
-};
-typedef struct imx_gpu ocl_device;
+} ocl_device;
 
-struct kernel_obj {
+typedef struct {
     ocl_device *GPU;
     cl_kernel kernel;
     cl_mem *mems;
     cl_event prof_event;
-};
-typedef struct kernel_obj ocl_function;
+} ocl_function;
+ 
 
-void create_context(struct imx_gpu* GPU);
-void cl_init(struct imx_gpu* GPU);
-void build_program(struct imx_gpu* GPU,  char const* filename);
+void create_context(ocl_device* GPU);
+void cl_init(ocl_device* GPU);
+void build_program(ocl_device* GPU,  char const* filename);
 char* kernel_source(const char* filename, size_t *programSize);
-void cl_release(struct imx_gpu* GPU);
+void cl_release(ocl_device* GPU);
 
 uint64_t get_perf_count();
 

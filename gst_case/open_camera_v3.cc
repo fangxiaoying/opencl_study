@@ -22,12 +22,19 @@
 
 
 #ifdef ENABLE_G2D
-#define BUFFER_NUMS   2
+#define BUFFER_NUMS   1
 #define VIDEOCONVERT "imxvideoconvert_g2d"
 #else
 #define VIDEOCONVERT "videoconvert"
 #endif
 
+// struct appdata {
+//     GMutex g_mutex;
+//     ocl_function bgra2rgb;
+//     int pad_right;
+//     int pad_bottom;
+//     struct g2d_buf * g2d_buffers[BUFFER_NUMS];
+// };
 struct appdata {
     GMutex g_mutex;
     struct imx_gpu IMX_GPU;
@@ -41,17 +48,17 @@ gst-launch-1.0 -v v4l2src device=/dev/video3 ! "video/x-raw,format=BGRx,width=19
 tee name=t ! queue ! imxvideoconvert_g2d ! appsink caps="video/x-raw,format=BGRx" drop=true max-buffers=2 t. ! \
 waylandsink
 
-add gpu optimization 
+add gpu optimization OCL padding and G2D resize
 
 enviroment:
-imx8mp, L5.15.5_1.0.0
+imx8mp, L5.10.72
 show video size 1080p
 
 performance:
 fps 30
-cup loading:
-open_camera_0(one-core) :  
-weston: 
+cup loading: 
+open_camera_0(one-core) :  8
+weston: 6
 
 if not need get image from gstreamer pipeline, the
 CPU loading is only 4% on one-core.
@@ -60,41 +67,55 @@ CPU loading is only 4% on one-core.
 int count = 0;
 
 static void
-debug_dma_buffer(int fd, struct appdata* app, int width, int height, int channels)
+dma_buffer_proc(int fd, struct appdata* app, int width, int height, int channels)
 {
     unsigned long src_paddr = 0;
     unsigned long dst_paddr = 0;
     u_int size = width * height;
 
-    if(50 == count) {
+    
+    count++;
+
+    if(50 == count) {            
         printf("appsink cap img shape %d x %d \n", width, height);
 
         src_paddr = phy_addr_from_fd(fd);
         dst_paddr = app->g2d_buffers[0]->buf_paddr;
-        copy_viv(&app->IMX_GPU, (void*)src_paddr,
-                (void*)dst_paddr, size * channels, true);
+
+
+        copy_viv(&app->IMX_GPU, (void*)src_paddr, (void*)dst_paddr, size * channels, true);
+
+// //         cv::Mat src_image(height, width, CV_8UC4, raw_data);
+// //         cv::Mat dst;
+// // #ifdef OCL
+// //         return ;
+// // #else
+// //         cv::cvtColor(src_image, dst, cv::COLOR_BGRA2BGR);
+// // #endif
+// //         // cv::imwrite("test.jpg", dst);
 
         cv::Mat dst_image, show_image; 
         dst_image.create (height, width, CV_8UC4);
         dst_image.data = (uchar *) ((unsigned long) app->g2d_buffers[0]->buf_vaddr);
         cv::cvtColor(dst_image, show_image, cv::COLOR_BGRA2BGR);
-        cv::imwrite("rgb.jpg", show_image);
+        cv::imwrite("test.jpg", show_image);
+
         count = 0;
     }
 
-    count++;
+    
 }
 
-/*  get buffer form gstreamer pipeline.
- *  the case map buffer to current thereat,
- *  cause CPU loading increase 8%
- */ 
+
+
+
 static GstFlowReturn
 new_sample(GstElement* sink, gpointer* data)
 {
-    struct appdata* app = (struct appdata*) data;
     int dam_buf_fd;
 
+    struct appdata* app = (struct appdata*) data;
+    
     GstSample* sample;
     g_signal_emit_by_name(sink, "pull-sample", &sample);
     if (!sample) return GST_FLOW_ERROR;
@@ -114,14 +135,13 @@ new_sample(GstElement* sink, gpointer* data)
         return GST_FLOW_ERROR;
     }
 
+    dam_buf_fd = gst_dmabuf_memory_get_fd (gst_buffer_peek_memory (buffer,0));
+  
+
     g_mutex_lock(&app->g_mutex);
 
-    if(gst_is_dmabuf_memory(gst_buffer_peek_memory (buffer,0))) {
+    dma_buffer_proc(dam_buf_fd, app, width, height, 4);
 
-        dam_buf_fd = gst_dmabuf_memory_get_fd (gst_buffer_peek_memory (buffer,0));
-        debug_dma_buffer(dam_buf_fd, app, width, height, 4);
-    }
-    
     gst_sample_unref(sample);
 
 
@@ -139,6 +159,31 @@ int main(int argc, char** argv)
     int            input_width       = 300;
     int            input_height      = 300;
     int            size              = 0;
+    float          scale             = 0.0;
+    int            scaled_width       = 0;
+    int            scaled_height      = 0;
+
+    // ocl_device     IMX_GPU;
+    // struct appdata app               = {0};
+
+    // /*for pad*/
+    // float scale_w = (float)video_width / input_width;
+    // float scale_h = (float)video_height / input_height;
+    // scale = scale_w > scale_h ? scale_w : scale_h;
+
+    // scaled_width = int(video_width / scale);
+    // scaled_height = int(video_height / scale);
+    // size =  scaled_width * scaled_height * 4;
+    // printf("%f , %d . %d \n", scale, scaled_width, scaled_height);
+
+    // app.pad_right = input_width - scaled_width;
+    // app.pad_bottom = input_height - scaled_height;
+    // app.g2d_buffers[0] = g2d_alloc(size, 1);    //RGB
+
+    // cl_init(&IMX_GPU);
+    // app.bgra2rgb.GPU = &IMX_GPU;
+    
+
 
 
     struct appdata app;
@@ -150,8 +195,8 @@ int main(int argc, char** argv)
         {
         case 0:
             /* appsink src pad format RGBX */
-            size = video_width * video_height * 4;
-            app.g2d_buffers[i] = g2d_alloc(size, 0);
+            size = input_width * input_height * 4;
+            app.g2d_buffers[i] = g2d_alloc(size, 1);
             break;
         case 1:
             /* RGBX convert to RGB24 */
@@ -163,6 +208,7 @@ int main(int argc, char** argv)
         }
 		
 	}
+
 
     /*step1  init gst */
     gst_init(&argc, &argv);
@@ -187,7 +233,11 @@ int main(int argc, char** argv)
     GstElement* adaptor1   = gst_element_factory_make(VIDEOCONVERT, "adaptor1");
     GstElement* overlay    = gst_element_factory_make("cairooverlay", "overlay");
     GstElement* adaptor2   = gst_element_factory_make(VIDEOCONVERT, "adaptor2");
+#ifdef ENABLE_FPS
+    GstElement* fpsdisplay = gst_element_factory_make("fpsdisplaysink", "fpsdisplay");
+#else
     GstElement* display = gst_element_factory_make("autovideosink", "display");
+#endif
 
     if (!source || !filter || !tee || !queue ||
         !convert || !appsink || !overlay || !adaptor1 ||
@@ -218,8 +268,8 @@ int main(int argc, char** argv)
     const char* nn_data_format = "BGRx";
     GstCaps* appsink_caps = gst_caps_new_simple("video/x-raw",
                                 "format", G_TYPE_STRING, nn_data_format,
-                                 "width", G_TYPE_INT, video_width,
-                                "height", G_TYPE_INT, video_height,
+                                 "width", G_TYPE_INT, input_width,
+                                "height", G_TYPE_INT, input_height,
                                 NULL);
     //filter has no property name drop,  but appsink have this.
     g_object_set(appsink,
@@ -250,7 +300,11 @@ int main(int argc, char** argv)
                          adaptor1,
                          overlay,
                          adaptor2,
+#ifdef ENABLE_FPS
+                         fpsdisplay,
+#else
                          display,
+#endif
                          NULL);
 
     if (!gst_element_link_many(source, filter, tee, NULL)) {
@@ -270,7 +324,12 @@ int main(int argc, char** argv)
 
     // thread 3:  display pipeline
     if (!gst_element_link_many(tee,
+                               adaptor1,
+#ifdef ENABLE_FPS
+                               fpsdisplay,
+#else
                                display,
+#endif
                                 NULL)) {
         g_printerr("Failed to link display cap_pipeline\n");
         return EXIT_FAILURE;
@@ -285,11 +344,8 @@ int main(int argc, char** argv)
     gst_object_unref(GST_OBJECT(cap_pipeline));
     g_main_loop_unref(loop);
 
-    //release sources
+
     cl_release(&app.IMX_GPU);
-    g2d_free(app.g2d_buffers[0]);
-    g2d_free(app.g2d_buffers[1]);
 
     return EXIT_SUCCESS;
-
 }

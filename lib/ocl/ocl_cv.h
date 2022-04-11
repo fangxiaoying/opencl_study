@@ -19,6 +19,10 @@ void padding_init(ocl_device* GPU, ocl_function* fill, struct g2d_buf *src,
 void padding_run(ocl_function* fill, int src_w, int src_h, bool flush);
 void padding_release(ocl_function* fill, struct g2d_buf *dst);
 
+void BGRA2RGB_init(ocl_function* csc);
+void BGRA2RGB_run(ocl_function* csc, void * host_src, void* host_dst, int width, int height);
+void BGRA2RGB_release(ocl_function* csc);
+
 #ifdef __cplusplus
 }
 #endif
